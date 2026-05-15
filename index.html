@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MD Viewer Tauri</title>
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>MD Viewer</h1>
+        <p id="document-status">Untitled</p>
+      </div>
+      <div class="actions">
+        <button id="open-button" type="button">Open</button>
+        <button id="clear-button" type="button">Clear</button>
+        <button id="save-button" type="button">Save</button>
+        <button id="save-as-button" type="button">Save As</button>
+        <button id="export-html-button" type="button">Export HTML</button>
+        <button id="export-pdf-button" type="button">Export PDF</button>
+      </div>
+    </header>
+
+    <section class="utility-bar">
+      <select id="recent-files-select" aria-label="Recent files"></select>
+      <div class="utility-actions">
+        <button id="reading-mode-button" type="button">Reading Mode</button>
+        <button id="theme-toggle-button" type="button">Dark</button>
+      </div>
+    </section>
+
+    <main class="workspace">
+      <section class="panel editor-panel">
+        <div class="panel-header">
+          <h2>Markdown</h2>
+          <span id="dirty-indicator">Saved</span>
+        </div>
+        <textarea id="editor" spellcheck="false" placeholder="# Paste Markdown here"></textarea>
+      </section>
+
+      <section class="panel preview-panel">
+        <div class="panel-header">
+          <h2>Preview</h2>
+          <span class="hint">Rich paste converts copied HTML into Markdown when available</span>
+        </div>
+        <article id="preview" class="preview-content"></article>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
