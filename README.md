@@ -59,15 +59,15 @@ Reason:
 
 Top-level layout:
 
-- [`package.json`](C:\Users\tao\Frischsenteret Dropbox\tao zhang\helloWorld\md-viewer-tauri\package.json): frontend scripts and JS dependencies
-- [`vite.config.js`](C:\Users\tao\Frischsenteret Dropbox\tao zhang\helloWorld\md-viewer-tauri\vite.config.js): Vite frontend config
-- [`index.html`](C:\Users\tao\Frischsenteret Dropbox\tao zhang\helloWorld\md-viewer-tauri\index.html): app shell HTML
-- [`src/main.js`](C:\Users\tao\Frischsenteret Dropbox\tao zhang\helloWorld\md-viewer-tauri\src\main.js): frontend behavior
-- [`src/styles.css`](C:\Users\tao\Frischsenteret Dropbox\tao zhang\helloWorld\md-viewer-tauri\src\styles.css): UI styling
-- [`src-tauri/src/main.rs`](C:\Users\tao\Frischsenteret Dropbox\tao zhang\helloWorld\md-viewer-tauri\src-tauri\src\main.rs): Rust backend commands
-- [`src-tauri/tauri.conf.json`](C:\Users\tao\Frischsenteret Dropbox\tao zhang\helloWorld\md-viewer-tauri\src-tauri\tauri.conf.json): Tauri app config
-- [`src-tauri/Cargo.toml`](C:\Users\tao\Frischsenteret Dropbox\tao zhang\helloWorld\md-viewer-tauri\src-tauri\Cargo.toml): Rust dependencies
-- [`portable/md-viewer-tauri.exe`](C:\Users\tao\Frischsenteret Dropbox\tao zhang\helloWorld\md-viewer-tauri\portable\md-viewer-tauri.exe): portable executable
+- [`package.json`](package.json): frontend scripts and JS dependencies
+- [`vite.config.js`](vite.config.js): Vite frontend config
+- [`index.html`](index.html): app shell HTML
+- [`src/main.js`](src/main.js): frontend behavior
+- [`src/styles.css`](src/styles.css): UI styling
+- [`src-tauri/src/main.rs`](src-tauri/src/main.rs): Rust backend commands
+- [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json): Tauri app config
+- [`src-tauri/Cargo.toml`](src-tauri/Cargo.toml): Rust dependencies
+- portable executable: distributed via [GitHub Releases](https://github.com/forlop/md-viewer-tauri/releases)
 
 ## Architecture
 
@@ -181,7 +181,8 @@ cargo build --release
 
 Current Tauri installer output:
 
-- [`src-tauri/target/release/bundle/nsis/MD Viewer Tauri_0.1.0_x64-setup.exe`](C:\Users\tao\Frischsenteret Dropbox\tao zhang\helloWorld\md-viewer-tauri\src-tauri\target\release\bundle\nsis\MD Viewer Tauri_0.1.0_x64-setup.exe)
+- `src-tauri/target/release/bundle/nsis/MD Viewer Tauri_<version>_x64-setup.exe` (build output, not in repo)
+- Published installers are attached to [GitHub Releases](https://github.com/forlop/md-viewer-tauri/releases)
 
 Properties:
 
@@ -194,7 +195,7 @@ Properties:
 
 Portable zip:
 
-- [`MD-Viewer-Tauri-Portable.zip`](C:\Users\tao\Frischsenteret Dropbox\tao zhang\helloWorld\md-viewer-tauri\MD-Viewer-Tauri-Portable.zip)
+- `MD-Viewer-Tauri-Portable.zip` is published on [GitHub Releases](https://github.com/forlop/md-viewer-tauri/releases)
 
 Properties:
 
