@@ -261,6 +261,25 @@ select {
   color: var(--accent);
 }
 
+.preview-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.4rem auto;
+  border-radius: 8px;
+}
+
+.preview-content p:has(> img:only-child) {
+  margin: 1.4rem 0;
+  text-align: center;
+}
+
+.preview-content .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.35rem 0;
+}
+
 body.reading-mode .editor-panel {
   display: none;
 }

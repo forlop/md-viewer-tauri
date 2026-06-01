@@ -1,9 +1,12 @@
 import "./styles.css";
+import "katex/dist/katex.min.css";
+import katexCss from "katex/dist/katex.min.css?inline";
 import markdownit from "markdown-it";
 import hljs from "highlight.js";
+import katex from "katex";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const editor = document.getElementById("editor");
@@ -19,6 +22,101 @@ const exportPdfButton = document.getElementById("export-pdf-button");
 const themeToggleButton = document.getElementById("theme-toggle-button");
 const readingModeButton = document.getElementById("reading-mode-button");
 const recentFilesSelect = document.getElementById("recent-files-select");
+
+function renderLatex(source, displayMode) {
+  try {
+    return katex.renderToString(source, {
+      displayMode,
+      throwOnError: false,
+      errorColor: "#a14f2a"
+    });
+  } catch (_error) {
+    return md.utils.escapeHtml(source);
+  }
+}
+
+function mathPlugin(markdown) {
+  markdown.inline.ruler.after("escape", "math_inline", (state, silent) => {
+    if (state.src[state.pos] !== "$" || state.src[state.pos + 1] === "$") {
+      return false;
+    }
+
+    const start = state.pos + 1;
+    const end = state.src.indexOf("$", start);
+    if (end === -1 || end === start) {
+      return false;
+    }
+
+    if (!silent) {
+      const token = state.push("math_inline", "math", 0);
+      token.content = state.src.slice(start, end);
+    }
+
+    state.pos = end + 1;
+    return true;
+  });
+
+  markdown.block.ruler.after("blockquote", "math_block", (state, startLine, endLine, silent) => {
+    let pos = state.bMarks[startLine] + state.tShift[startLine];
+    const max = state.eMarks[startLine];
+
+    if (state.src.slice(pos, pos + 2) !== "$$") {
+      return false;
+    }
+
+    if (silent) {
+      return true;
+    }
+
+    pos += 2;
+    const firstLine = state.src.slice(pos, max);
+    const singleLineEnd = firstLine.lastIndexOf("$$");
+    if (singleLineEnd >= 0) {
+      const token = state.push("math_block", "math", 0);
+      token.block = true;
+      token.content = firstLine.slice(0, singleLineEnd).trim();
+      token.map = [startLine, startLine + 1];
+      state.line = startLine + 1;
+      return true;
+    }
+
+    const content = [firstLine];
+    let nextLine = startLine + 1;
+    let foundClosingDelimiter = false;
+    for (; nextLine < endLine; nextLine += 1) {
+      const lineStart = state.bMarks[nextLine] + state.tShift[nextLine];
+      const lineEnd = state.eMarks[nextLine];
+      const line = state.src.slice(lineStart, lineEnd);
+      const closingIndex = line.lastIndexOf("$$");
+
+      if (closingIndex >= 0) {
+        content.push(line.slice(0, closingIndex));
+        foundClosingDelimiter = true;
+        break;
+      }
+
+      content.push(line);
+    }
+
+    if (!foundClosingDelimiter) {
+      return false;
+    }
+
+    const token = state.push("math_block", "math", 0);
+    token.block = true;
+    token.content = content.join("\n").trim();
+    token.map = [startLine, nextLine + 1];
+    state.line = nextLine + 1;
+    return true;
+  });
+
+  markdown.renderer.rules.math_inline = (tokens, index) => renderLatex(tokens[index].content, false);
+  markdown.renderer.rules.math_block = (tokens, index) => {
+    return `<p class="math-block">${renderLatex(tokens[index].content, true)}</p>\n`;
+  };
+}
+
+let imageRenderTarget = "preview";
 
 const md = markdownit({
   html: false,
@@ -38,6 +136,23 @@ const md = markdownit({
   }
 });
 
+md.use(mathPlugin);
+
+const defaultImageRenderer = md.renderer.rules.image || ((tokens, index, options, _env, renderer) => {
+  return renderer.renderToken(tokens, index, options);
+});
+
+md.renderer.rules.image = (tokens, index, options, env, renderer) => {
+  const token = tokens[index];
+  const src = token.attrGet("src");
+
+  if (src) {
+    token.attrSet("src", resolveImageSource(src, imageRenderTarget));
+  }
+
+  return defaultImageRenderer(tokens, index, options, env, renderer);
+};
+
 const turndown = new TurndownService({
   headingStyle: "atx",
   codeBlockStyle: "fenced",
@@ -50,9 +165,104 @@ turndown.use(gfm);
 let currentFilePath = null;
 let currentFileName = "Untitled";
 let lastSavedContent = "";
-let recentFiles = JSON.parse(localStorage.getItem("mdViewerTauri.recentFiles") || "[]");
+let recentFiles = loadRecentFiles();
 let isReadingMode = localStorage.getItem("mdViewerTauri.readingMode") === "true";
 let theme = localStorage.getItem("mdViewerTauri.theme") || "light";
+
+function loadRecentFiles() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("mdViewerTauri.recentFiles") || "[]");
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((item) => item?.filePath && item?.fileName);
+  } catch (_error) {
+    localStorage.removeItem("mdViewerTauri.recentFiles");
+    return [];
+  }
+}
+
+function basenameWithoutMarkdownExtension(fileName) {
+  return (fileName || "document").replace(/\.(md|markdown|txt)$/i, "") || "document";
+}
+
+function isRemoteOrEmbeddedSource(src) {
+  return /^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(src);
+}
+
+function isAbsoluteWindowsPath(src) {
+  return /^[a-zA-Z]:[\\/]/.test(src) || /^\\\\/.test(src);
+}
+
+function documentDirectory() {
+  if (!currentFilePath) {
+    return null;
+  }
+
+  const separatorIndex = Math.max(currentFilePath.lastIndexOf("\\"), currentFilePath.lastIndexOf("/"));
+  return separatorIndex >= 0 ? currentFilePath.slice(0, separatorIndex) : null;
+}
+
+function normalizeImagePath(src) {
+  try {
+    return decodeURI(src);
+  } catch (_error) {
+    return src;
+  }
+}
+
+function resolveImagePath(src) {
+  const normalizedSrc = normalizeImagePath(src).replaceAll("/", "\\");
+  if (isAbsoluteWindowsPath(normalizedSrc)) {
+    return normalizedSrc;
+  }
+
+  const directory = documentDirectory();
+  if (!directory) {
+    return src;
+  }
+
+  return `${directory}\\${normalizedSrc}`;
+}
+
+function fileUrlFromPath(filePath) {
+  return `file:///${filePath.replaceAll("\\", "/").replaceAll("#", "%23")}`;
+}
+
+function resolveImageSource(src, target) {
+  if (isRemoteOrEmbeddedSource(src)) {
+    return src;
+  }
+
+  const resolvedPath = resolveImagePath(src);
+  return target === "export" ? fileUrlFromPath(resolvedPath) : convertFileSrc(resolvedPath);
+}
+
+function isBareImageUrl(line) {
+  return /^<?https?:\/\/\S+\.(?:apng|avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#]\S*)?>?$/i.test(line.trim());
+}
+
+function prepareMarkdown(content) {
+  const lines = (content || "").split(/\r?\n/);
+  let inFence = false;
+
+  return lines
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+
+      if (inFence || !isBareImageUrl(line)) {
+        return line;
+      }
+
+      const url = line.trim().replace(/^<|>$/g, "");
+      return `![Figure](${url})`;
+    })
+    .join("\n");
+}
 
 function escapeHtml(value) {
   return value
@@ -64,13 +274,14 @@ function escapeHtml(value) {
 }
 
 function buildHtmlDocument() {
-  const previewHtml = md.render(editor.value);
+  const previewHtml = renderContent(editor.value, "export");
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(currentFileName.replace(/\.md$/i, "") || "document")}</title>
+  <title>${escapeHtml(basenameWithoutMarkdownExtension(currentFileName))}</title>
+  <style>${katexCss}</style>
   <style>
     body {
       margin: 0;
@@ -107,6 +318,22 @@ function buildHtmlDocument() {
       border: 1px solid #d9d1c2;
       text-align: left;
       vertical-align: top;
+    }
+    img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      margin: 1.4rem auto;
+      border-radius: 8px;
+    }
+    p:has(> img:only-child) {
+      margin: 1.4rem 0;
+      text-align: center;
+    }
+    .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 0.35rem 0;
     }
   </style>
 </head>
@@ -154,7 +381,16 @@ function applyReadingMode(nextValue) {
 }
 
 function renderMarkdown(content) {
-  preview.innerHTML = md.render(content || "");
+  preview.innerHTML = renderContent(content, "preview");
+}
+
+function renderContent(content, target) {
+  imageRenderTarget = target;
+  try {
+    return md.render(prepareMarkdown(content));
+  } finally {
+    imageRenderTarget = "preview";
+  }
 }
 
 function isDirty() {
@@ -199,6 +435,7 @@ function clearDocument() {
   currentFilePath = null;
   currentFileName = "Untitled";
   editor.value = "";
+  lastSavedContent = "";
   renderMarkdown("");
   updateStatus();
   editor.focus();
@@ -245,7 +482,7 @@ async function exportHtml() {
   await invoke("export_html", {
     filePath: currentFilePath,
     htmlDocument: buildHtmlDocument(),
-    suggestedName: currentFileName.replace(/\.md$/i, "") + ".html"
+    suggestedName: `${basenameWithoutMarkdownExtension(currentFileName)}.html`
   });
 }
 
@@ -253,7 +490,7 @@ async function exportPdf() {
   await invoke("export_pdf", {
     filePath: currentFilePath,
     htmlDocument: buildHtmlDocument(),
-    suggestedName: currentFileName.replace(/\.md$/i, "") + ".pdf"
+    suggestedName: `${basenameWithoutMarkdownExtension(currentFileName)}.pdf`
   });
 }
 
