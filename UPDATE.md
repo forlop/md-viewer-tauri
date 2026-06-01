@@ -22,12 +22,12 @@ This update improves Markdown rendering for technical notes while keeping the ap
 ### Build
 
 - Portable ZIP: `MD-Viewer-Tauri-Portable.zip`
-- Installer: `MD Viewer Tauri_0.1.0_x64-setup.exe`
+- Installer: `MD Viewer Tauri_0.1.1_x64-setup.exe`
 
 ### SHA256
 
-- `MD-Viewer-Tauri-Portable.zip`: `F5A2B8C2699A2E42698E0CCAEAED30D74D0DA59D39172D5F2F7CB996E5EC08FF`
-- `MD Viewer Tauri_0.1.0_x64-setup.exe`: `F93F23E74ABBAA93489C345DB914C35E38E6221C5C3BA46232E63DB291F30D65`
+- `MD-Viewer-Tauri-Portable.zip`: `F7EF29B42E05CE58A8672689AC7B10D88301EB0C4DB7DF75016AADE943D73262`
+- `MD Viewer Tauri_0.1.1_x64-setup.exe`: `99305909C3E9F23D581399E2DB9339C86B819D665AA8F858E8252A7978356AE7`
 
 ### Verified
 
