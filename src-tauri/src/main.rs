@@ -156,16 +156,62 @@ fn default_target_name(
     suggested_name
 }
 
-fn find_edge_path() -> Option<PathBuf> {
-    let candidates = [
+/// Locate a Chromium-family browser (Edge/Chrome/Chromium/Brave) for headless
+/// PDF export. The `--headless ... --print-to-pdf` flags are identical across
+/// these browsers and across Windows/macOS/Linux, so we just need a binary.
+fn find_chromium_browser() -> Option<PathBuf> {
+    // Absolute install locations, by platform.
+    #[cfg(target_os = "windows")]
+    let absolute_candidates: &[&str] = &[
         r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
         r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ];
+    #[cfg(target_os = "macos")]
+    let absolute_candidates: &[&str] = &[
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    ];
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let absolute_candidates: &[&str] = &[
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/microsoft-edge",
+        "/usr/bin/brave-browser",
+        "/snap/bin/chromium",
     ];
 
-    candidates
+    if let Some(path) = absolute_candidates
         .iter()
         .map(PathBuf::from)
         .find(|path| path.exists())
+    {
+        return Some(path);
+    }
+
+    // Fall back to anything on PATH (handles non-standard installs / Linux).
+    let names = [
+        "google-chrome",
+        "google-chrome-stable",
+        "chromium",
+        "chromium-browser",
+        "microsoft-edge",
+        "brave-browser",
+    ];
+    names.iter().find_map(|name| find_on_path(name))
+}
+
+/// Search the PATH environment variable for an executable by name.
+fn find_on_path(name: &str) -> Option<PathBuf> {
+    let path_var = env::var_os("PATH")?;
+    env::split_paths(&path_var)
+        .map(|dir| dir.join(name))
+        .find(|candidate| candidate.is_file())
 }
 
 fn cleanup_old_temp_exports(temp_dir: &Path) {
@@ -218,8 +264,10 @@ fn export_pdf(
         return Ok(canceled_save_payload());
     };
 
-    let edge_path = find_edge_path().ok_or_else(|| {
-        "Microsoft Edge was not found. PDF export currently requires Edge on Windows.".to_string()
+    let browser_path = find_chromium_browser().ok_or_else(|| {
+        "No compatible browser found. PDF export needs a Chromium-based browser \
+         (Microsoft Edge, Google Chrome, Chromium, or Brave) installed."
+            .to_string()
     })?;
 
     let temp_dir = env::temp_dir();
@@ -236,11 +284,15 @@ fn export_pdf(
     let edge_profile_dir = temp_dir.join("md-viewer-edge-profile");
     let _ = fs::create_dir_all(&edge_profile_dir);
 
-    let html_arg = format!(
-        "file:///{}",
-        temp_html_path.to_string_lossy().replace('\\', "/")
-    );
-    let status = Command::new(edge_path)
+    let normalized_temp = temp_html_path.to_string_lossy().replace('\\', "/");
+    // Windows paths ("C:/...") need the triple-slash form; POSIX paths already
+    // begin with "/", so prefix only "file://" to avoid a stray fourth slash.
+    let html_arg = if normalized_temp.starts_with('/') {
+        format!("file://{normalized_temp}")
+    } else {
+        format!("file:///{normalized_temp}")
+    };
+    let status = Command::new(browser_path)
         .arg("--headless=old")
         .arg("--disable-gpu")
         .arg(format!(

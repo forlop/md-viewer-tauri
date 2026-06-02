@@ -191,8 +191,9 @@ function isRemoteOrEmbeddedSource(src) {
   return /^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(src);
 }
 
-function isAbsoluteWindowsPath(src) {
-  return /^[a-zA-Z]:[\\/]/.test(src) || /^\\\\/.test(src);
+function isAbsolutePath(src) {
+  // Windows drive (C:\ or C:/), UNC (\\server), or POSIX absolute (/path).
+  return /^[a-zA-Z]:[\\/]/.test(src) || /^\\\\/.test(src) || src.startsWith("/");
 }
 
 function documentDirectory() {
@@ -213,8 +214,8 @@ function normalizeImagePath(src) {
 }
 
 function resolveImagePath(src) {
-  const normalizedSrc = normalizeImagePath(src).replaceAll("/", "\\");
-  if (isAbsoluteWindowsPath(normalizedSrc)) {
+  const normalizedSrc = normalizeImagePath(src);
+  if (isAbsolutePath(normalizedSrc)) {
     return normalizedSrc;
   }
 
@@ -223,11 +224,16 @@ function resolveImagePath(src) {
     return src;
   }
 
-  return `${directory}\\${normalizedSrc}`;
+  // Use the separator of the current document's path: "\" on Windows, "/" elsewhere.
+  const separator = directory.includes("\\") ? "\\" : "/";
+  const relative = normalizedSrc.replaceAll(/[\\/]/g, separator);
+  return `${directory}${separator}${relative}`;
 }
 
 function fileUrlFromPath(filePath) {
-  return `file:///${filePath.replaceAll("\\", "/").replaceAll("#", "%23")}`;
+  const normalized = filePath.replaceAll("\\", "/").replaceAll("#", "%23");
+  // POSIX absolute paths already start with "/", so don't add a third slash.
+  return normalized.startsWith("/") ? `file://${normalized}` : `file:///${normalized}`;
 }
 
 function resolveImageSource(src, target) {
